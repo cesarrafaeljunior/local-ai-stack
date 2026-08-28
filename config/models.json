@@ -63,7 +63,7 @@
       "model": "qwen/qwen2.5-coder-7b",
       "quantization": "q4_k_m",
       "identifier": "qwen-code",
-      "context_length": 8192,
+      "context_length": 16384,
       "gpu": "max",
       "ttl_seconds": 0,
       "prompt": "prompts/code.md",
