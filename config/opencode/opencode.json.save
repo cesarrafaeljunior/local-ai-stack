@@ -1,0 +1,57 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "model": "lmstudio/qwen-code",
+  "small_model": "lmstudio/qwen-code",
+
+  "provider": {
+    "lmstudio": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "LM Studio (local)",
+
+      "options": {
+        "baseURL": "{env:OPENCODE_LMSTUDIO_BASE_URL}"
+      },
+
+      "models": {
+        "qwen-code": {
+          "name": "Qwen2.5 Coder 7B (Local)",
+
+          "limit": {
+            "context": 16384,
+            "output": 4096
+         }
+        }
+      }
+    }
+  },
+
+  "default_agent": "plan",
+
+  "permission": {
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+
+    "edit": "ask",
+
+    "bash": {
+      "*": "ask",
+
+      "git status*": "allow",
+      "git diff*": "allow",
+      "git log*": "allow",
+
+      "git commit*": "deny",
+      "git push*": "deny"
+    },
+
+    "task": "ask",
+
+    "external_directory": "deny",
+
+    "webfetch": "deny",
+    "websearch": "deny"
+  }
+}

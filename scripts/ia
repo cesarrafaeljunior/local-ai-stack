@@ -267,6 +267,9 @@ Uso:
   ia estimate <perfil>    Estima memória (modelo precisa estar instalado)
   ia info <perfil>        Mostra a configuração completa
   ia prompt <perfil>      Exibe o system prompt
+  ia agent [plan|build]   Abre o OpenCode com o qwen-code local
+  ia agent run <modo>     Executa uma tarefa OpenCode não interativa
+  ia agent doctor         Diagnóstico do coding agent
   ia models               Lista perfis e modelos instalados
   ia status               Estado de daemon, API, modelo, WebUI e GPU
   ia doctor               Diagnóstico
@@ -313,6 +316,10 @@ main() {
     webui-export) webui_models export ;;
     webui-import) webui_models import ;;
     webui-sync) webui_models sync ;;
+    agent)
+      shift
+      "$ROOT/scripts/opencode-agent.sh" "$@"
+      ;;
     -h|--help|help|"") usage ;;
     *) fail "Comando desconhecido: $cmd. Use: ia --help" ;;
   esac

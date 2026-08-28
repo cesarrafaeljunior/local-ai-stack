@@ -1,0 +1,67 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "model": "lmstudio/qwen-work",
+  "small_model": "lmstudio/qwen-work",
+
+  "provider": {
+    "lmstudio": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "LM Studio (local)",
+
+      "options": {
+        "baseURL": "{env:OPENCODE_LMSTUDIO_BASE_URL}"
+      },
+
+      "models": {
+        "qwen-work": {
+          "name": "Qwen3 8B (Local Agent)",
+          "limit": {
+            "context": 8192,
+            "output": 4096
+          }
+        },
+
+        "qwen-code": {
+          "name": "Qwen2.5 Coder 7B (Local Chat)",
+          "limit": {
+            "context": 16384,
+            "output": 4096
+          }
+        }
+      }
+    }
+  },
+
+  "default_agent": "plan",
+
+  "permission": {
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+
+    "edit": "ask",
+
+    "bash": {
+      "*": "ask",
+
+      "git status*": "allow",
+      "git diff*": "allow",
+      "git log*": "allow",
+
+      "git commit*": "deny",
+      "git push*": "deny"
+    },
+
+    "task": {
+      "*": "deny",
+      "explore": "allow"
+    },
+
+    "external_directory": "deny",
+
+    "webfetch": "deny",
+    "websearch": "deny"
+  }
+}
