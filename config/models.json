@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "default_profile": "work",
+  "profiles": {
+    "light": {
+      "model": "qwen/qwen3-4b",
+      "quantization": "q4_k_m",
+      "identifier": "qwen-light",
+      "context_length": 8192,
+      "gpu": "max",
+      "ttl_seconds": 0,
+      "purpose": "Tarefas simples, resumos, transformações, pequenas funções e agentes auxiliares."
+    },
+    "work": {
+      "model": "qwen/qwen3-8b",
+      "quantization": "q4_k_m",
+      "identifier": "qwen-work",
+      "context_length": 8192,
+      "gpu": "max",
+      "ttl_seconds": 0,
+      "purpose": "Modelo principal para desenvolvimento, análise, chat e agentes locais."
+    },
+    "heavy": {
+      "model": "qwen/qwen3-14b",
+      "quantization": "q4_k_m",
+      "identifier": "qwen-heavy",
+      "context_length": 8192,
+      "gpu": "max",
+      "ttl_seconds": 0,
+      "purpose": "Arquitetura, análise e revisão mais complexas quando a máquina estiver ociosa."
+    }
+  }
+}

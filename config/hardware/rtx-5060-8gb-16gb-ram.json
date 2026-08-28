@@ -1,0 +1,16 @@
+{
+  "name": "rtx-5060-8gb-16gb-ram",
+  "notes": "Perfil de referência inicial. Ajuste por máquina; não é aplicado automaticamente.",
+  "cpu": "Intel Core i5-12600KF",
+  "ram_gib": 16,
+  "gpu": "NVIDIA GeForce RTX 5060",
+  "vram_gib": 8,
+  "recommended_default_profile": "work",
+  "observed_estimates": {
+    "qwen3_8b_q4_k_m_context_8192_gpu_max": {
+      "estimated_gpu_memory_gib": 4.68,
+      "estimated_total_memory_gib": 4.68,
+      "gpu_offload_percent": 100
+    }
+  }
+}

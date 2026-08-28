@@ -1,0 +1,30 @@
+name: validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate shell syntax
+        run: |
+          bash -n scripts/ia
+          for file in scripts/*.sh; do
+            bash -n "$file"
+          done
+
+      - name: Validate JSON
+        run: |
+          python3 -m json.tool config/models.json >/dev/null
+          python3 -m json.tool config/hardware/rtx-5060-8gb-16gb-ram.json >/dev/null
+
+      - name: Validate Docker Compose
+        run: |
+          cp .env.example .env
+          sed -i 's/^WEBUI_SECRET_KEY=.*/WEBUI_SECRET_KEY=ci-placeholder-secret/' .env
+          docker compose config >/dev/null
