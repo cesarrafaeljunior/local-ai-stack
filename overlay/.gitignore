@@ -1,0 +1,28 @@
+# Secrets / machine-specific configuration
+.env
+.env.*
+!.env.example
+.webui_secret
+*.key
+*.pem
+
+# Runtime data
+data/
+backups/
+logs/
+tmp/
+
+# Local models / weights
+models/
+*.gguf
+*.bin
+*.safetensors
+
+# Local architecture-update backups
+.architecture-v1-backup-*/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

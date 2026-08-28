@@ -18,6 +18,9 @@ models/
 *.bin
 *.safetensors
 
+# Local architecture-update backups
+.architecture-v1-backup-*/
+
 # IDE / OS
 .idea/
 .vscode/

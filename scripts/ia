@@ -21,24 +21,22 @@ ok()   { printf '\033[1;32m[ok]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[warning]\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m[error]\033[0m %s\n' "$*" >&2; exit 1; }
 
-require() {
-  command -v "$1" >/dev/null 2>&1 || fail "Dependência ausente: $1"
-}
+require() { command -v "$1" >/dev/null 2>&1 || fail "Dependência ausente: $1"; }
 
 profile_value() {
-  local profile="$1"
-  local field="$2"
+  local profile="$1" field="$2"
   python3 - "$MODELS_CONFIG" "$profile" "$field" <<'PY'
 import json, sys
 path, profile, field = sys.argv[1:]
 with open(path, encoding="utf-8") as f:
     data = json.load(f)
-try:
-    value = data["profiles"][profile][field]
-except KeyError:
-    sys.exit(2)
+value = data["profiles"][profile]
+for part in field.split("."):
+    value = value[part]
 if isinstance(value, bool):
     print(str(value).lower())
+elif isinstance(value, (dict, list)):
+    print(json.dumps(value, ensure_ascii=False))
 else:
     print(value)
 PY
@@ -53,29 +51,35 @@ sys.exit(0 if sys.argv[2] in data["profiles"] else 1)
 PY
 }
 
+list_profile_names() {
+  python3 - "$MODELS_CONFIG" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    data = json.load(f)
+for name in data["profiles"]:
+    print(name)
+PY
+}
+
 resolve_bind() {
   if [[ "$LMS_BIND" != "auto" ]]; then
     printf '%s\n' "$LMS_BIND"
     return
   fi
-
   local ip=""
   if command -v ip >/dev/null 2>&1; then
     ip="$(ip -4 addr show docker0 2>/dev/null | awk '/inet / {print $2}' | cut -d/ -f1 | head -n1 || true)"
   fi
-
   if [[ -n "$ip" ]]; then
     printf '%s\n' "$ip"
   else
     warn "Não foi possível detectar docker0; usando 0.0.0.0 para a API do LM Studio." >&2
-    warn "Não exponha a porta ${LMS_PORT} à internet e revise seu firewall." >&2
+    warn "Não exponha a porta ${LMS_PORT} à internet." >&2
     printf '0.0.0.0\n'
   fi
 }
 
-compose() {
-  (cd "$ROOT" && docker compose "$@")
-}
+compose() { (cd "$ROOT" && docker compose "$@"); }
 
 ensure_core_deps() {
   require python3
@@ -83,14 +87,8 @@ ensure_core_deps() {
   require lms
   docker compose version >/dev/null 2>&1 || fail "Docker Compose v2 não encontrado."
 }
-
-ensure_env() {
-  [[ -f "$ENV_FILE" ]] || fail ".env ausente. Execute: ./scripts/bootstrap.sh"
-}
-
-start_daemon() {
-  lms daemon up >/dev/null 2>&1 || true
-}
+ensure_env() { [[ -f "$ENV_FILE" ]] || fail ".env ausente. Execute: ./scripts/bootstrap.sh"; }
+start_daemon() { lms daemon up >/dev/null 2>&1 || true; }
 
 start_server() {
   local bind
@@ -107,26 +105,32 @@ is_model_installed() {
 install_profile() {
   local profile="$1"
   profile_exists "$profile" || fail "Perfil desconhecido: $profile"
-
   local model quant
   model="$(profile_value "$profile" model)"
   quant="$(profile_value "$profile" quantization)"
-
   start_daemon
-
   if is_model_installed "$model"; then
     ok "$model já está instalado."
     return
   fi
-
   info "Baixando $model@$quant ..."
   lms get "${model}@${quant}"
 }
 
-start_profile() {
+estimate_profile() {
   local profile="$1"
   profile_exists "$profile" || fail "Perfil desconhecido: $profile"
+  local model context gpu
+  model="$(profile_value "$profile" model)"
+  context="$(profile_value "$profile" context_length)"
+  gpu="$(profile_value "$profile" gpu)"
+  start_daemon
+  is_model_installed "$model" || fail "$model ainda não está instalado. Use: ia install $profile"
+  lms load --estimate-only "$model" --gpu "$gpu" --context-length "$context"
+}
 
+start_profile() {
+  local profile="$1"
   local model identifier context gpu ttl
   model="$(profile_value "$profile" model)"
   identifier="$(profile_value "$profile" identifier)"
@@ -135,19 +139,14 @@ start_profile() {
   ttl="$(profile_value "$profile" ttl_seconds)"
 
   start_daemon
-
-  if ! is_model_installed "$model"; then
-    fail "$model não está instalado. Execute: ia install $profile"
-  fi
+  is_model_installed "$model" || fail "$model não está instalado. Execute: ia install $profile"
 
   info "Descarregando modelos anteriores..."
   lms unload --all >/dev/null 2>&1 || true
 
   info "Carregando $model como $identifier..."
   args=(load "$model" --gpu "$gpu" --context-length "$context" --identifier "$identifier")
-  if [[ "$ttl" =~ ^[0-9]+$ ]] && (( ttl > 0 )); then
-    args+=(--ttl "$ttl")
-  fi
+  if [[ "$ttl" =~ ^[0-9]+$ ]] && (( ttl > 0 )); then args+=(--ttl "$ttl"); fi
   lms "${args[@]}"
 
   info "Iniciando API do LM Studio..."
@@ -158,117 +157,96 @@ start_profile() {
 
   ok "Perfil '$profile' ativo."
   printf 'Open WebUI: http://localhost:%s\n' "$OPEN_WEBUI_PORT"
+  printf 'System prompt: %s\n' "$(profile_value "$profile" prompt)"
 }
 
 stop_all() {
   info "Parando Open WebUI..."
   compose stop >/dev/null 2>&1 || true
-
   info "Parando API do LM Studio..."
   lms server stop >/dev/null 2>&1 || true
-
   info "Descarregando todos os modelos..."
   lms unload --all >/dev/null 2>&1 || true
-
   info "Parando llmster..."
   lms daemon down >/dev/null 2>&1 || true
-
   ok "IA local desligada."
 }
 
 show_status() {
-  printf '\n=== llmster ===\n'
-  lms daemon status 2>/dev/null || true
-
-  printf '\n=== LM Studio API ===\n'
-  lms server status 2>/dev/null || true
-
-  printf '\n=== Modelos carregados ===\n'
-  lms ps 2>/dev/null || true
-
-  printf '\n=== Open WebUI ===\n'
-  compose ps 2>/dev/null || true
-
+  printf '\n=== llmster ===\n'; lms daemon status 2>/dev/null || true
+  printf '\n=== LM Studio API ===\n'; lms server status 2>/dev/null || true
+  printf '\n=== Modelos carregados ===\n'; lms ps 2>/dev/null || true
+  printf '\n=== Open WebUI ===\n'; compose ps 2>/dev/null || true
   if command -v nvidia-smi >/dev/null 2>&1; then
     printf '\n=== GPU ===\n'
-    nvidia-smi --query-gpu=name,memory.used,memory.total,utilization.gpu \
-      --format=csv,noheader 2>/dev/null || true
+    nvidia-smi --query-gpu=name,memory.used,memory.total,utilization.gpu --format=csv,noheader 2>/dev/null || true
   fi
 }
 
 doctor() {
   local errors=0
   printf 'Local AI Doctor\n\n'
-
   for cmd in docker python3 curl openssl lms; do
-    if command -v "$cmd" >/dev/null 2>&1; then
-      printf '  %-18s OK\n' "$cmd"
-    else
-      printf '  %-18s MISSING\n' "$cmd"
-      errors=$((errors + 1))
-    fi
+    if command -v "$cmd" >/dev/null 2>&1; then printf '  %-18s OK\n' "$cmd"; else printf '  %-18s MISSING\n' "$cmd"; errors=$((errors+1)); fi
   done
-
-  if docker compose version >/dev/null 2>&1; then
-    printf '  %-18s OK\n' "docker compose"
-  else
-    printf '  %-18s MISSING\n' "docker compose"
-    errors=$((errors + 1))
-  fi
-
+  if docker compose version >/dev/null 2>&1; then printf '  %-18s OK\n' "docker compose"; else printf '  %-18s MISSING\n' "docker compose"; errors=$((errors+1)); fi
   if command -v nvidia-smi >/dev/null 2>&1; then
     printf '  %-18s OK\n' "nvidia-smi"
-    nvidia-smi --query-gpu=name,memory.total,driver_version \
-      --format=csv,noheader 2>/dev/null | sed 's/^/    /'
-  else
-    printf '  %-18s INFO: GPU NVIDIA não detectada\n' "nvidia-smi"
+    nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader 2>/dev/null | sed 's/^/    /'
   fi
-
-  printf '\nDisco em %s:\n' "$ROOT"
-  df -h "$ROOT" | tail -n1 | sed 's/^/  /'
-
-  printf '\nModelos configurados:\n'
+  printf '\nDisco em %s:\n' "$ROOT"; df -h "$ROOT" | tail -n1 | sed 's/^/  /'
+  printf '\nPerfis configurados:\n'
   python3 - "$MODELS_CONFIG" <<'PY'
 import json, sys
 with open(sys.argv[1], encoding="utf-8") as f:
-    data = json.load(f)
-for name, p in data["profiles"].items():
-    print(f"  {name:<8} {p['model']}@{p['quantization']} -> {p['identifier']}")
+    data=json.load(f)
+for name,p in data["profiles"].items():
+    rp=p.get("reasoning",{}).get("policy","n/a")
+    print(f"  {name:<12} {p['model']}@{p['quantization']} -> {p['identifier']} [{rp}]")
 PY
-
   (( errors == 0 )) || exit 1
 }
 
 list_models() {
   printf '=== Perfis configurados ===\n'
   python3 - "$MODELS_CONFIG" <<'PY'
-import json, sys
-with open(sys.argv[1], encoding="utf-8") as f:
-    data = json.load(f)
-for name, p in data["profiles"].items():
-    print(f"{name:8} {p['model']}@{p['quantization']}")
-    print(f"         id={p['identifier']} context={p['context_length']} gpu={p['gpu']} ttl={p['ttl_seconds']}")
-    print(f"         {p['purpose']}")
+import json,sys
+with open(sys.argv[1],encoding="utf-8") as f:data=json.load(f)
+for name,p in data["profiles"].items():
+    print(f"{name:12} {p['model']}@{p['quantization']}")
+    print(f"             id={p['identifier']} context={p['context_length']} gpu={p['gpu']} ttl={p['ttl_seconds']}")
+    print(f"             prompt={p.get('prompt','-')} reasoning={p.get('reasoning',{}).get('policy','-')}")
+    print(f"             {p['purpose']}")
 PY
   printf '\n=== Modelos instalados no LM Studio ===\n'
   lms ls
 }
 
-open_web() {
-  local url="http://localhost:${OPEN_WEBUI_PORT}"
-  if command -v xdg-open >/dev/null 2>&1; then
-    xdg-open "$url" >/dev/null 2>&1 &
-    ok "Abrindo $url"
-  else
-    printf '%s\n' "$url"
-  fi
+show_profile_info() {
+  local profile="$1"
+  profile_exists "$profile" || fail "Perfil desconhecido: $profile"
+  python3 - "$MODELS_CONFIG" "$profile" <<'PY'
+import json,sys
+with open(sys.argv[1],encoding="utf-8") as f:data=json.load(f)
+print(json.dumps(data["profiles"][sys.argv[2]],indent=2,ensure_ascii=False))
+PY
 }
 
-update_webui() {
-  compose pull
-  compose up -d
-  ok "Open WebUI atualizado/recriado."
+show_prompt() {
+  local profile="$1"
+  profile_exists "$profile" || fail "Perfil desconhecido: $profile"
+  local prompt
+  prompt="$(profile_value "$profile" prompt)"
+  [[ -f "$ROOT/$prompt" ]] || fail "Prompt não encontrado: $prompt"
+  cat "$ROOT/$prompt"
 }
+
+open_web() {
+  local url="http://localhost:${OPEN_WEBUI_PORT}"
+  if command -v xdg-open >/dev/null 2>&1; then xdg-open "$url" >/dev/null 2>&1 & ok "Abrindo $url"; else printf '%s\n' "$url"; fi
+}
+
+update_webui() { compose pull; compose up -d; ok "Open WebUI atualizado/recriado."; }
 
 backup_webui() {
   mkdir -p "$ROOT/backups"
@@ -279,32 +257,51 @@ backup_webui() {
   ok "Backup criado: $target"
 }
 
+webui_models() { "$ROOT/scripts/webui-models.sh" "$1"; }
+
 usage() {
   cat <<'EOF'
 Uso:
-  ia light                Ativa Qwen3 4B
-  ia work                 Ativa Qwen3 8B (perfil principal)
-  ia heavy                Ativa Qwen3 14B
-  ia install <perfil>     Baixa o modelo de um perfil
+  ia <perfil>             Ativa qualquer perfil definido em config/models.json
+  ia install <perfil>     Baixa o modelo
+  ia estimate <perfil>    Estima memória (modelo precisa estar instalado)
+  ia info <perfil>        Mostra a configuração completa
+  ia prompt <perfil>      Exibe o system prompt
   ia models               Lista perfis e modelos instalados
-  ia status               Exibe estado de daemon, API, modelo, WebUI e GPU
-  ia doctor               Valida dependências e hardware
+  ia status               Estado de daemon, API, modelo, WebUI e GPU
+  ia doctor               Diagnóstico
   ia web                  Abre o Open WebUI
-  ia off                  Para WebUI, API, modelos e llmster
-  ia update-webui         Atualiza a imagem configurada do Open WebUI
-  ia backup               Cria backup dos dados do Open WebUI
+  ia off                  Desliga toda a IA local
+  ia update-webui         Atualiza/recria o Open WebUI
+  ia backup               Backup do Open WebUI
+  ia webui-export         Exporta presets do Open WebUI para Git
+  ia webui-import         Importa presets sem apagar outros
+  ia webui-sync           Sincroniza exatamente os presets versionados
+
+Perfis atuais:
 EOF
+  list_profile_names | sed 's/^/  - /'
 }
 
 main() {
   ensure_core_deps
   ensure_env
+  local cmd="${1:-}"
 
-  case "${1:-}" in
-    light|work|heavy) start_profile "$1" ;;
-    install)
-      [[ -n "${2:-}" ]] || fail "Informe o perfil: light, work ou heavy."
-      install_profile "$2"
+  if [[ -n "$cmd" ]] && profile_exists "$cmd"; then
+    start_profile "$cmd"
+    exit 0
+  fi
+
+  case "$cmd" in
+    install|estimate|info|prompt)
+      [[ -n "${2:-}" ]] || fail "Informe o perfil."
+      case "$cmd" in
+        install) install_profile "$2" ;;
+        estimate) estimate_profile "$2" ;;
+        info) show_profile_info "$2" ;;
+        prompt) show_prompt "$2" ;;
+      esac
       ;;
     models) list_models ;;
     status) show_status ;;
@@ -313,9 +310,11 @@ main() {
     off) stop_all ;;
     update-webui) update_webui ;;
     backup) backup_webui ;;
+    webui-export) webui_models export ;;
+    webui-import) webui_models import ;;
+    webui-sync) webui_models sync ;;
     -h|--help|help|"") usage ;;
-    *) fail "Comando desconhecido: $1. Use: ia --help" ;;
+    *) fail "Comando desconhecido: $cmd. Use: ia --help" ;;
   esac
 }
-
 main "$@"

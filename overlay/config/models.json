@@ -1,0 +1,146 @@
+{
+  "schema_version": 2,
+  "default_profile": "work",
+  "profiles": {
+    "light": {
+      "model": "qwen/qwen3-4b-2507",
+      "quantization": "q4_k_m",
+      "identifier": "qwen-light",
+      "context_length": 8192,
+      "gpu": "max",
+      "ttl_seconds": 0,
+      "prompt": "prompts/light.md",
+      "category": "general",
+      "recommended_usage": "interactive-low-resource",
+      "reasoning": {
+        "capable": false,
+        "policy": "disabled",
+        "soft_switch": false
+      },
+      "generation": {
+        "default": {
+          "temperature": 0.7,
+          "top_p": 0.8,
+          "top_k": 20
+        }
+      },
+      "purpose": "Tarefas gerais leves, respostas rápidas, resumos, transformações e agentes auxiliares."
+    },
+    "work": {
+      "model": "qwen/qwen3-8b",
+      "quantization": "q4_k_m",
+      "identifier": "qwen-work",
+      "context_length": 8192,
+      "gpu": "max",
+      "ttl_seconds": 0,
+      "prompt": "prompts/work.md",
+      "category": "general",
+      "recommended_usage": "interactive-default",
+      "reasoning": {
+        "capable": true,
+        "policy": "adaptive-default-thinking",
+        "soft_switch": true,
+        "think_directive": "/think",
+        "no_think_directive": "/no_think"
+      },
+      "generation": {
+        "thinking": {
+          "temperature": 0.6,
+          "top_p": 0.95,
+          "top_k": 20,
+          "min_p": 0
+        },
+        "non_thinking": {
+          "temperature": 0.7,
+          "top_p": 0.8,
+          "top_k": 20,
+          "min_p": 0
+        }
+      },
+      "purpose": "Modelo principal para chat, desenvolvimento, análise, planejamento e agentes locais."
+    },
+    "code": {
+      "model": "qwen/qwen2.5-coder-7b",
+      "quantization": "q4_k_m",
+      "identifier": "qwen-code",
+      "context_length": 8192,
+      "gpu": "max",
+      "ttl_seconds": 0,
+      "prompt": "prompts/code.md",
+      "category": "code",
+      "recommended_usage": "interactive-coding",
+      "reasoning": {
+        "capable": false,
+        "policy": "prompt-guided",
+        "soft_switch": false
+      },
+      "generation": {
+        "default": {
+          "temperature": 0.7,
+          "top_p": 0.8,
+          "top_k": 20,
+          "repetition_penalty": 1.1
+        }
+      },
+      "purpose": "Especialista em código para Java, Spring, Angular, SQL, testes, debugging e refatoração."
+    },
+    "heavy": {
+      "model": "qwen/qwen3-14b",
+      "quantization": "q4_k_m",
+      "identifier": "qwen-heavy",
+      "context_length": 8192,
+      "gpu": "max",
+      "ttl_seconds": 0,
+      "prompt": "prompts/heavy.md",
+      "category": "general",
+      "recommended_usage": "idle-machine",
+      "reasoning": {
+        "capable": true,
+        "policy": "thinking-preferred",
+        "soft_switch": true,
+        "think_directive": "/think",
+        "no_think_directive": "/no_think"
+      },
+      "generation": {
+        "thinking": {
+          "temperature": 0.6,
+          "top_p": 0.95,
+          "top_k": 20,
+          "min_p": 0
+        },
+        "non_thinking": {
+          "temperature": 0.7,
+          "top_p": 0.8,
+          "top_k": 20,
+          "min_p": 0
+        }
+      },
+      "purpose": "Análise geral mais pesada, arquitetura, planejamento e revisão com a máquina ociosa."
+    },
+    "code-heavy": {
+      "model": "qwen/qwen2.5-coder-14b",
+      "quantization": "q4_k_m",
+      "identifier": "qwen-code-heavy",
+      "context_length": 8192,
+      "gpu": "max",
+      "ttl_seconds": 0,
+      "prompt": "prompts/code-heavy.md",
+      "category": "code",
+      "recommended_usage": "idle-machine-coding",
+      "reasoning": {
+        "capable": false,
+        "policy": "prompt-guided-deep",
+        "soft_switch": false
+      },
+      "generation": {
+        "default": {
+          "temperature": 0.7,
+          "top_p": 0.8,
+          "top_k": 20,
+          "repetition_penalty": 1.05
+        }
+      },
+      "purpose": "Código complexo, arquitetura, refatorações amplas e revisão profunda quando a máquina estiver ociosa."
+    }
+  }
+}

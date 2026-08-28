@@ -20,8 +20,27 @@ jobs:
 
       - name: Validate JSON
         run: |
-          python3 -m json.tool config/models.json >/dev/null
-          python3 -m json.tool config/hardware/rtx-5060-8gb-16gb-ram.json >/dev/null
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          for path in Path("config").rglob("*.json"):
+              with path.open(encoding="utf-8") as f:
+                  json.load(f)
+              print(f"OK {path}")
+          PY
+
+      - name: Validate referenced prompts
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("config/models.json").read_text())
+          for name, profile in data["profiles"].items():
+              prompt = Path(profile["prompt"])
+              if not prompt.exists():
+                  raise SystemExit(f"{name}: prompt ausente: {prompt}")
+              print(f"OK {name}: {prompt}")
+          PY
 
       - name: Validate Docker Compose
         run: |

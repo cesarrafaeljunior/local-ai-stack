@@ -1,162 +1,78 @@
 # local-ai-stack
 
-Stack reproduzível para executar IA local com **LM Studio/llmster + modelos Qwen + Open WebUI**.
-
-O repositório versiona a **receita do ambiente**, não os pesos dos modelos nem dados pessoais.
-
-## Arquitetura
-
-```text
-Browser
-  │
-  ▼
-Open WebUI (Docker)
-  │  OpenAI-compatible API
-  ▼
-LM Studio / llmster (host)
-  │
-  ▼
-Qwen (GPU / RAM)
-```
-
-## Escopo inicial
-
-- Linux/Ubuntu.
-- LM Studio/`llmster` executado no host.
-- Open WebUI executado em Docker.
-- Um modelo carregado por vez.
-- Perfis `light`, `work` e `heavy`.
-- Comando único `ia` para operação diária.
-
-## Por que não colocar os modelos no Git?
-
-Arquivos GGUF podem ter vários gigabytes e variam conforme hardware/quantização. Este repositório guarda apenas os identificadores e parâmetros necessários para baixá-los novamente.
+Stack reproduzível para IA local com **LM Studio/llmster + modelos locais + Open WebUI**.
 
 ## Perfis
 
-| Perfil | Modelo | Quantização | Uso |
-|---|---|---|---|
-| `light` | Qwen3 4B | Q4_K_M | tarefas leves |
-| `work` | Qwen3 8B | Q4_K_M | uso principal / desenvolvimento |
-| `heavy` | Qwen3 14B | Q4_K_M | análise mais pesada com máquina ociosa |
+| Comando | Modelo | Objetivo |
+|---|---|---|
+| `ia light` | Qwen3 4B Instruct 2507 | tarefas leves |
+| `ia work` | Qwen3 8B | uso geral |
+| `ia code` | Qwen2.5-Coder 7B | desenvolvimento |
+| `ia heavy` | Qwen3 14B | análise pesada |
+| `ia code-heavy` | Qwen2.5-Coder 14B | desenvolvimento pesado |
 
-Veja [`docs/MODELS.md`](docs/MODELS.md).
-
-## Instalação em uma máquina nova
-
-Pré-requisitos:
-
-- Docker + Docker Compose v2
-- `curl`
-- `python3`
-- `openssl`
-- Driver da GPU adequado, quando houver GPU
-
-Clone:
+Perfis configurados não são baixados automaticamente.
 
 ```bash
-git clone <URL_DO_REPOSITORIO>
-cd local-ai-stack
-```
-
-Bootstrap:
-
-```bash
-./scripts/bootstrap.sh
-```
-
-Depois:
-
-```bash
-ia doctor
-ia install work
-ia work
-ia web
-```
-
-Se o modelo já estiver instalado no LM Studio, `ia install work` não baixa novamente.
-
-## Operação diária
-
-```bash
-ia light
-ia work
-ia heavy
-
-ia status
 ia models
-ia web
+ia install code
+ia code
+```
 
+## Comandos
+
+```bash
+ia <perfil>
+ia install <perfil>
+ia estimate <perfil>
+ia info <perfil>
+ia prompt <perfil>
+
+ia models
+ia status
+ia doctor
+ia web
+ia off
+
+ia backup
+ia update-webui
+
+ia webui-export
+ia webui-import
+ia webui-sync
+```
+
+Os nomes dos perfis são dinâmicos: adicionar um perfil em `config/models.json` não exige editar `scripts/ia`.
+
+## Reasoning
+
+Qwen3 suporta `/think` e `/no_think`. O `work` usa profundidade proporcional à tarefa; `heavy` favorece thinking profundo.
+
+Qwen2.5-Coder não usa esses soft switches.
+
+## Prompts
+
+Os system prompts ficam em `prompts/` e são associados aos perfis em `config/models.json`.
+
+```bash
+ia prompt work
+ia info work
+```
+
+Use-os em Model presets do Open WebUI e depois versione os presets com `ia webui-export`.
+
+Veja `docs/ARCHITECTURE.md` e `docs/OPEN_WEBUI.md`.
+
+## Desligamento total
+
+```bash
 ia off
 ```
 
-`ia off` para o Open WebUI, para a API do LM Studio, descarrega todos os modelos e encerra o `llmster`.
+## Dados fora do Git
 
-## Open WebUI
-
-URL padrão:
-
-```text
-http://localhost:3000
-```
-
-A imagem está fixada em `v0.11.1` no `.env.example` para tornar o ambiente reproduzível. Atualize de forma explícita alterando `OPEN_WEBUI_IMAGE` e executando:
-
-```bash
-ia update-webui
-```
-
-## Dados persistentes
-
-Os dados do Open WebUI ficam em:
-
-```text
-data/open-webui/
-```
-
-Essa pasta é ignorada pelo Git.
-
-Backup:
-
-```bash
-ia backup
-```
-
-## Configuração
-
-Modelos:
-
-```text
-config/models.json
-```
-
-Configuração local:
-
-```text
-.env
-```
-
-O `.env` nunca deve ser commitado. Use `.env.example` como template.
-
-## Segurança
-
-O Open WebUI só é publicado em `127.0.0.1` por padrão.
-
-Para o container alcançar o LM Studio, o comando `ia` tenta ligar a API apenas à interface `docker0`. Se isso não for possível, ele usa `0.0.0.0` como fallback e exibe um aviso. Nesse caso, revise o firewall e nunca exponha a porta 1234 à internet.
-
-Veja [`docs/SECURITY.md`](docs/SECURITY.md).
-
-## Repositório público ou privado?
-
-Este projeto foi desenhado para poder ser público:
-
-- nenhum GGUF é versionado;
-- `.env` é ignorado;
-- chats e banco do Open WebUI são ignorados;
-- secrets são ignorados;
-- apenas configuração e scripts entram no Git.
-
-Ainda assim, para uma primeira configuração pessoal, é prudente criar o repositório como **privado**, validar com `git status` e só então torná-lo público.
+Não versione `.env`, API keys, GGUF, chats, banco do Open WebUI, uploads ou backups.
 
 ## Licença
 
