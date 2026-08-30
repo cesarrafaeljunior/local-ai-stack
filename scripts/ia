@@ -250,10 +250,18 @@ update_webui() { compose pull; compose up -d; ok "Open WebUI atualizado/recriado
 
 backup_webui() {
   mkdir -p "$ROOT/backups"
+
   local ts target
+
   ts="$(date +%Y%m%d-%H%M%S)"
   target="$ROOT/backups/open-webui-$ts.tar.gz"
-  tar -C "$ROOT/data" -czf "$target" open-webui
+
+  tar \
+    -C "$ROOT/data" \
+    --exclude='open-webui/cache' \
+    -czf "$target" \
+    open-webui
+
   ok "Backup criado: $target"
 }
 
